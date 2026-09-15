@@ -1,0 +1,436 @@
+{
+  "name": "AI Lead Hunter - Google Maps + Instagram",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "1",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "niche",
+              "value": "watches",
+              "type": "string"
+            },
+            {
+              "id": "a2",
+              "name": "location",
+              "value": "Lahore, Pakistan",
+              "type": "string"
+            },
+            {
+              "id": "a3",
+              "name": "max_leads",
+              "value": 20,
+              "type": "number"
+            },
+            {
+              "id": "a4",
+              "name": "serper_api_key",
+              "value": "YOUR_SERPER_API_KEY",
+              "type": "string"
+            },
+            {
+              "id": "a5",
+              "name": "gemini_api_key",
+              "value": "YOUR_GEMINI_API_KEY",
+              "type": "string"
+            },
+            {
+              "id": "a6",
+              "name": "google_sheet_id",
+              "value": "YOUR_GOOGLE_SHEET_ID",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2",
+      "name": "Lead Hunter Settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const niche=$json.niche; const location=$json.location; return [{json:{...$json,maps_query:`${niche} businesses in ${location}`,web_query:`${niche} businesses ${location} site:instagram.com`}}];"
+      },
+      "id": "3",
+      "name": "Build Search Queries",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://google.serper.dev/maps",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-KEY",
+              "value": "={{ $json.serper_api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\"q\":\"{{$json.maps_query}}\",\"num\":{{ $json.max_leads }}}",
+        "options": {}
+      },
+      "id": "4",
+      "name": "Google Maps Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -520,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://google.serper.dev/search",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-KEY",
+              "value": "={{ $('Build Search Queries').first().json.serper_api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\"q\":\"{{$('Build Search Queries').first().json.web_query}}\",\"num\":20}",
+        "options": {}
+      },
+      "id": "5",
+      "name": "Instagram Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -520,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "6",
+      "name": "Combine Search Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -280,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const maps=$input.first().json; const web=$input.last().json; const cfg=$('Build Search Queries').first().json; const leads=new Map(); function add(x,source){const name=(x.title||x.name||'').trim();if(!name)return;const key=(name+'|'+(x.website||x.link||x.address||'')).toLowerCase();if(!leads.has(key))leads.set(key,{business_name:name,source,address:x.address||'',phone:x.phoneNumber||x.phone||'',website:x.website||'',instagram:source==='Instagram Search'?(x.link||''):'',category:x.category||'',rating:x.rating||'',reviews:x.ratingCount||x.reviews||'',snippet:x.snippet||'',maps_url:x.googleMapsUrl||''});} for(const p of (maps.places||maps.local_results||[]))add(p,'Google Maps'); for(const o of (web.organic||[]))add(o,'Instagram Search'); return Array.from(leads.values()).slice(0,Number(cfg.max_leads||20)).map(x=>({json:{...x,niche:cfg.niche,location:cfg.location,discovered_at:new Date().toISOString()}}));"
+      },
+      "id": "7",
+      "name": "Normalize & Deduplicate Leads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -40,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={{ $('Build Search Queries').first().json.gemini_api_key }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({contents:[{parts:[{text:`You are an AI sales lead qualification agent for an AI automation agency. Analyze this business lead and return ONLY valid JSON with these fields: ideal_customer (boolean), lead_score (number 1-10), business_summary (string), likely_pain_points (array of strings), automation_opportunities (array of strings), priority (High|Medium|Low), personalized_outreach (string). Do not invent facts. If information is missing, say so. The agency sells AI WhatsApp/Instagram customer support, AI calling receptionists, appointment booking, lead capture, and business automation. Lead data:\\n${JSON.stringify($json)}` }]}]}) }}",
+        "options": {}
+      },
+      "id": "8",
+      "name": "Gemini Lead Qualification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw=$json.candidates?.[0]?.content?.parts?.[0]?.text||''; const clean=raw.replace(/```json/gi,'').replace(/```/g,'').trim(); let ai={}; try{ai=JSON.parse(clean)}catch{ai={ideal_customer:false,lead_score:0,business_summary:'AI JSON parsing failed',likely_pain_points:[],automation_opportunities:[],priority:'Low',personalized_outreach:''}} const lead=$('Normalize & Deduplicate Leads').item.json; return [{json:{...lead,...ai,qualified_at:new Date().toISOString()}}];"
+      },
+      "id": "9",
+      "name": "Build Qualified Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.lead_score }}",
+              "rightValue": 6,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "10",
+      "name": "High Value Lead?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Build Search Queries').first().json.google_sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "11",
+      "name": "Save Qualified Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        900,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Build Search Queries').first().json.google_sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "All Leads",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "12",
+      "name": "Save All Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        900,
+        120
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Lead Hunter Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lead Hunter Settings": {
+      "main": [
+        [
+          {
+            "node": "Build Search Queries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Search Queries": {
+      "main": [
+        [
+          {
+            "node": "Google Maps Search",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Instagram Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Maps Search": {
+      "main": [
+        [
+          {
+            "node": "Combine Search Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instagram Search": {
+      "main": [
+        [
+          {
+            "node": "Combine Search Results",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Combine Search Results": {
+      "main": [
+        [
+          {
+            "node": "Normalize & Deduplicate Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize & Deduplicate Leads": {
+      "main": [
+        [
+          {
+            "node": "Gemini Lead Qualification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Lead Qualification": {
+      "main": [
+        [
+          {
+            "node": "Build Qualified Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Qualified Lead": {
+      "main": [
+        [
+          {
+            "node": "High Value Lead?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "High Value Lead?": {
+      "main": [
+        [
+          {
+            "node": "Save Qualified Leads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save All Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "a5f8c9f4-8e3b-4a8a-9e3c-1d5d9f4b7a21",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

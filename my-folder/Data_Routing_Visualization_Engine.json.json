@@ -1,0 +1,263 @@
+{
+  "name": "Data Routing & Visualization Engine",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Data Routing & Visualization Engine\n\n**Trigger** → POST `/webhook/data-routing`\n\n### Payload Shape\n```json\n{\n  \"outputMode\": \"clean_data | charts_dashboard | full_intelligence\",\n  \"data\": [\n    { \"label\": \"Jan\", \"revenue\": 12000, \"profit\": 4200 }\n  ]\n}\n```\n\n### Switch Routes\n| Route | Value | Target |\n|-------|-------|--------|\n| 0 | `clean_data` | Set node — structured export stub |\n| 1 | `charts_dashboard` | Code node — HTML + Chart.js |\n| 2 | `full_intelligence` | Both branches simultaneously |\n| 3 | *(unmatched)* | Fallback output (no-op) |\n\n### Model\ngpt-4o-mini (native dropdown — no custom ID)"
+      },
+      "id": "5498d745-5bd4-40f7-8003-5f50094b5689",
+      "name": "Sticky Note 5498d745",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        416,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Route 0 — Clean Data Exporter\n\nReceives `clean_data` or `full_intelligence` mode.\n\n**Set node** structures the sanitized payload:\n- `outputMode` — echoed from request\n- `records` — the raw data array\n- `recordCount` — length of the dataset\n- `status` — hardcoded `\"sanitized\"`\n- `exportedAt` — ISO timestamp\n\nWire this output to Google Sheets, a DB, or an HTTP endpoint."
+      },
+      "id": "34da8c54-552f-47a6-ba18-d0c45279a3b1",
+      "name": "Sticky Note 34da8c54",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        48,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Route 1 — HTML Dashboard Generator\n\nReceives `charts_dashboard` or `full_intelligence` mode.\n\n**Code node** returns:\n- `htmlDashboard` — full standalone HTML string\n- `dataPoints` — number of data records\n- `generatedAt` — ISO timestamp\n\nThe dashboard uses:\n- Tailwind CSS (CDN) for responsive layout\n- Chart.js (CDN) for interactive line graph\n- Dark theme with KPI summary cards\n\nSave `htmlDashboard` as `.html` and open in any browser.",
+        "height": 80
+      },
+      "id": "64598411-1c96-47bb-85a0-354baf6a509f",
+      "name": "Sticky Note 64598411",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -160,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "data-routing",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "c4363ff9-02d6-4fc4-b5bb-d9e50d230a71",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        96
+      ],
+      "webhookId": "35663560-4723-4204-8edd-dff80c53f1d8"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.outputMode }}",
+                    "rightValue": "clean_data",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "clean_data"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.outputMode }}",
+                    "rightValue": "charts_dashboard",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "charts_dashboard"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.outputMode }}",
+                    "rightValue": "full_intelligence",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "full_intelligence"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "Unmatched",
+          "allMatchingOutputs": false
+        }
+      },
+      "id": "2e75f184-4bbb-4174-bc38-323fbaab35a1",
+      "name": "Route by outputMode",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "field-output-mode",
+              "name": "outputMode",
+              "value": "={{ $json.body.outputMode }}",
+              "type": "string"
+            },
+            {
+              "id": "field-records",
+              "name": "records",
+              "value": "={{ $json.body.data }}",
+              "type": "array"
+            },
+            {
+              "id": "field-record-count",
+              "name": "recordCount",
+              "value": "={{ $json.body.data ? $json.body.data.length : 0 }}",
+              "type": "number"
+            },
+            {
+              "id": "field-status",
+              "name": "status",
+              "value": "sanitized",
+              "type": "string"
+            },
+            {
+              "id": "field-exported-at",
+              "name": "exportedAt",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "156835e2-5075-4028-b2fb-1fe8686b3310",
+      "name": "Clean_Data_Exporter",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        448,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract dataset from webhook body\nconst items = $input.all();\nconst body = items[0].json.body || {};\nconst rawData = Array.isArray(body.data) ? body.data : [];\n\n// Build chart labels and dataset arrays\nconst labels = rawData.map(function(r) { return r.label || \"\"; });\nconst revenueData = rawData.map(function(r) { return Number(r.revenue) || 0; });\nconst profitData = rawData.map(function(r) { return Number(r.profit) || 0; });\n\n// Escape for safe JSON embedding\nconst labelsJSON = JSON.stringify(labels);\nconst revenueJSON = JSON.stringify(revenueData);\nconst profitJSON = JSON.stringify(profitData);\n\nconst generatedAt = new Date().toISOString();\n\n// Build HTML — no nested template literals; use array join for readability\nconst LF = String.fromCharCode(10);\nconst lines = [\n  \"<!DOCTYPE html>\",\n  \"<html lang=\\\"en\\\">\",\n  \"<head>\",\n  \"  <meta charset=\\\"UTF-8\\\" />\",\n  \"  <meta name=\\\"viewport\\\" content=\\\"width=device-width, initial-scale=1.0\\\" />\",\n  \"  <title>InsightAI KPI Dashboard</title>\",\n  \"  <script src=\\\"https://cdn.jsdelivr.net/npm/tailwindcss/dist/tailwind.min.css\\\" defer><\\/script>\",\n  \"  <script src=\\\"https://cdn.jsdelivr.net/npm/chart.js\\\"><\\/script>\",\n  \"  <style>\",\n  \"    * { box-sizing: border-box; margin: 0; padding: 0; }\",\n  \"    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;\",\n  \"           background: #0f172a; color: #e2e8f0; padding: 24px; }\",\n  \"    .dashboard-header { margin-bottom: 24px; }\",\n  \"    .dashboard-header h1 { font-size: 24px; font-weight: 700; color: #f1f5f9; }\",\n  \"    .dashboard-header p { color: #64748b; font-size: 13px; margin-top: 4px; }\",\n  \"    .kpi-grid { display: grid;\",\n  \"               grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));\",\n  \"               gap: 16px; margin-bottom: 24px; }\",\n  \"    .kpi-card { background: #1e293b; border-radius: 10px; padding: 16px 20px;\",\n  \"                border-top: 3px solid #3b82f6; }\",\n  \"    .kpi-card.green { border-top-color: #22c55e; }\",\n  \"    .kpi-card.purple { border-top-color: #a855f7; }\",\n  \"    .kpi-label { font-size: 11px; color: #64748b; text-transform: uppercase;\",\n  \"                 letter-spacing: 1px; margin-bottom: 6px; }\",\n  \"    .kpi-value { font-size: 22px; font-weight: 700; color: #7dd3fc; }\",\n  \"    .chart-wrapper { background: #1e293b; border-radius: 12px; padding: 24px; }\",\n  \"    .chart-title { font-size: 16px; font-weight: 600; color: #f1f5f9;\",\n  \"                   margin-bottom: 16px; }\",\n  \"    .chart-container { position: relative; height: 380px; }\",\n  \"    .footer { text-align: center; color: #334155; font-size: 11px; margin-top: 20px; }\",\n  \"  </style>\",\n  \"</head>\",\n  \"<body>\",\n  \"  <div class=\\\"dashboard-header\\\">\",\n  \"    <h1>InsightAI KPI Dashboard</h1>\",\n  \"    <p>Business Performance Analytics &bull; Generated: \" + generatedAt + \"</p>\",\n  \"  </div>\",\n\n  // KPI summary cards\n  \"  <div class=\\\"kpi-grid\\\">\",\n  \"    <div class=\\\"kpi-card\\\">\",\n  \"      <div class=\\\"kpi-label\\\">Data Points</div>\",\n  \"      <div class=\\\"kpi-value\\\">\" + rawData.length + \"</div>\",\n  \"    </div>\",\n  \"    <div class=\\\"kpi-card green\\\">\",\n  \"      <div class=\\\"kpi-label\\\">Total Revenue</div>\",\n  \"      <div class=\\\"kpi-value\\\">\" + revenueData.reduce(function(a, b) { return a + b; }, 0).toLocaleString() + \"</div>\",\n  \"    </div>\",\n  \"    <div class=\\\"kpi-card purple\\\">\",\n  \"      <div class=\\\"kpi-label\\\">Total Profit</div>\",\n  \"      <div class=\\\"kpi-value\\\">\" + profitData.reduce(function(a, b) { return a + b; }, 0).toLocaleString() + \"</div>\",\n  \"    </div>\",\n  \"  </div>\",\n\n  // Chart container\n  \"  <div class=\\\"chart-wrapper\\\">\",\n  \"    <div class=\\\"chart-title\\\">Revenue vs Profit — Line Chart</div>\",\n  \"    <div class=\\\"chart-container\\\">\",\n  \"      <canvas id=\\\"kpiChart\\\"></canvas>\",\n  \"    </div>\",\n  \"  </div>\",\n\n  \"  <div class=\\\"footer\\\">Powered by InsightAI Data Routing Engine &bull; Chart.js</div>\",\n\n  // Chart.js initialization script\n  \"  <script>\",\n  \"    (function() {\",\n  \"      var ctx = document.getElementById('kpiChart').getContext('2d');\",\n  \"      new Chart(ctx, {\",\n  \"        type: 'line',\",\n  \"        data: {\",\n  \"          labels: \" + labelsJSON + \",\",\n  \"          datasets: [\",\n  \"            {\",\n  \"              label: 'Revenue',\",\n  \"              data: \" + revenueJSON + \",\",\n  \"              borderColor: 'rgba(99, 179, 237, 1)',\",\n  \"              backgroundColor: 'rgba(99, 179, 237, 0.12)',\",\n  \"              borderWidth: 2.5,\",\n  \"              fill: true,\",\n  \"              tension: 0.4,\",\n  \"              pointRadius: 4,\",\n  \"              pointHoverRadius: 6\",\n  \"            },\",\n  \"            {\",\n  \"              label: 'Profit',\",\n  \"              data: \" + profitJSON + \",\",\n  \"              borderColor: 'rgba(72, 187, 120, 1)',\",\n  \"              backgroundColor: 'rgba(72, 187, 120, 0.12)',\",\n  \"              borderWidth: 2.5,\",\n  \"              fill: true,\",\n  \"              tension: 0.4,\",\n  \"              pointRadius: 4,\",\n  \"              pointHoverRadius: 6\",\n  \"            }\",\n  \"          ]\",\n  \"        },\",\n  \"        options: {\",\n  \"          responsive: true,\",\n  \"          maintainAspectRatio: false,\",\n  \"          plugins: {\",\n  \"            legend: {\",\n  \"              position: 'bottom',\",\n  \"              labels: { color: '#e2e8f0', font: { size: 12 } }\",\n  \"            },\",\n  \"            title: {\",\n  \"              display: true,\",\n  \"              text: 'Business KPI Trend Analysis',\",\n  \"              color: '#f1f5f9',\",\n  \"              font: { size: 16, weight: 'bold' }\",\n  \"            }\",\n  \"          },\",\n  \"          scales: {\",\n  \"            x: {\",\n  \"              ticks: { color: '#94a3b8' },\",\n  \"              grid: { color: 'rgba(148, 163, 184, 0.1)' }\",\n  \"            },\",\n  \"            y: {\",\n  \"              beginAtZero: true,\",\n  \"              ticks: { color: '#94a3b8' },\",\n  \"              grid: { color: 'rgba(148, 163, 184, 0.1)' }\",\n  \"            }\",\n  \"          }\",\n  \"        }\",\n  \"      });\",\n  \"    })();\",\n  \"<\\/script>\",\n  \"</body>\",\n  \"</html>\"\n];\n\nconst html = lines.join(LF);\n\nreturn [{ json: {\n  outputMode: body.outputMode || \"charts_dashboard\",\n  htmlDashboard: html,\n  dataPoints: rawData.length,\n  generatedAt: generatedAt,\n  instructions: \"Save htmlDashboard as a .html file and open in any browser.\"\n} }];"
+      },
+      "id": "4a57fdbe-530a-4a9e-ba3d-8ba46e76eb64",
+      "name": "Generate_HTML_Dashboard",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        192
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Route by outputMode",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by outputMode": {
+      "main": [
+        [
+          {
+            "node": "Clean_Data_Exporter",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate_HTML_Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Clean_Data_Exporter",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Generate_HTML_Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 0,
+  "meta": null
+}
