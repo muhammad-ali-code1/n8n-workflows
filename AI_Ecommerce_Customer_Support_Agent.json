@@ -1,0 +1,522 @@
+{
+  "name": "AI E-commerce Customer Support Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai-commerce/whatsapp",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "1",
+      "name": "WhatsApp Incoming",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1400,
+        -300
+      ],
+      "webhookId": "ai-commerce-whatsapp"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai-commerce/instagram",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "2",
+      "name": "Instagram Incoming",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1400,
+        -100
+      ],
+      "webhookId": "ai-commerce-instagram"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai-commerce/messenger",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "3",
+      "name": "Facebook Messenger Incoming",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1400,
+        100
+      ],
+      "webhookId": "ai-commerce-messenger"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai-commerce/website",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "4",
+      "name": "Website Chat Incoming",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1400,
+        300
+      ],
+      "webhookId": "ai-commerce-website"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "s1",
+              "name": "gemini_api_key",
+              "value": "YOUR_GEMINI_API_KEY",
+              "type": "string"
+            },
+            {
+              "id": "s2",
+              "name": "google_sheet_id",
+              "value": "YOUR_GOOGLE_SHEET_ID",
+              "type": "string"
+            },
+            {
+              "id": "s3",
+              "name": "whatsapp_phone_number_id",
+              "value": "YOUR_WHATSAPP_PHONE_NUMBER_ID",
+              "type": "string"
+            },
+            {
+              "id": "s4",
+              "name": "meta_access_token",
+              "value": "YOUR_META_ACCESS_TOKEN",
+              "type": "string"
+            },
+            {
+              "id": "s5",
+              "name": "admin_whatsapp",
+              "value": "YOUR_ADMIN_WHATSAPP_NUMBER",
+              "type": "string"
+            },
+            {
+              "id": "s6",
+              "name": "store_name",
+              "value": "YOUR STORE NAME",
+              "type": "string"
+            },
+            {
+              "id": "s7",
+              "name": "currency",
+              "value": "PKR",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5",
+      "name": "Store Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1180,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input=$json;\nconst body=input.body||input;\nlet channel='website';\nlet customerId='';\nlet message='';\nlet imageUrl='';\nlet messageId='';\n\nif(body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]){\n  const m=body.entry[0].changes[0].value.messages[0];\n  channel='whatsapp';\n  customerId=m.from||'';\n  message=m.text?.body||'';\n  messageId=m.id||'';\n  imageUrl=m.image?.url||'';\n}\nelse if(body.entry?.[0]?.messaging?.[0]){\n  const m=body.entry[0].messaging[0];\n  channel='facebook';\n  customerId=m.sender?.id||'';\n  message=m.message?.text||'';\n  messageId=m.message?.mid||'';\n  imageUrl=m.message?.attachments?.find(a=>a.type==='image')?.payload?.url||'';\n}\nelse if(body.instagram?.sender || body.entry?.[0]?.messaging?.[0]){\n  channel='instagram';\n  customerId=body.instagram?.sender?.id||body.entry?.[0]?.messaging?.[0]?.sender?.id||'';\n  message=body.instagram?.message?.text||body.entry?.[0]?.messaging?.[0]?.message?.text||'';\n  messageId=body.instagram?.message?.mid||'';\n  imageUrl=body.instagram?.message?.attachments?.find(a=>a.type==='image')?.payload?.url||'';\n}\nelse{\n  channel=body.channel||'website';\n  customerId=body.customer_id||body.user_id||body.sender_id||'';\n  message=body.message||body.text||body.query||'';\n  messageId=body.message_id||'';\n  imageUrl=body.image_url||'';\n}\n\nreturn [{json:{\n  ...input,\n  channel,\n  customer_id:customerId,\n  message,\n  image_url:imageUrl,\n  message_id:messageId,\n  received_at:new Date().toISOString()\n}}];"
+      },
+      "id": "6",
+      "name": "Normalize Incoming Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -940,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Store Configuration').first().json.google_sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Products",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "7",
+      "name": "Load Product Catalog",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -700,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const products=$input.all().map(i=>i.json);\nconst incoming=$('Normalize Incoming Message').first().json;\nconst q=(incoming.message||'').toLowerCase().trim();\nconst terms=q.split(/[^a-z0-9\u0622-\u06cc]+/i).filter(x=>x.length>1);\nfunction score(p){\n  const text=Object.values(p).join(' ').toLowerCase();\n  let s=0;\n  for(const t of terms) if(text.includes(t)) s+=2;\n  if((p['Product Name']||p.product_name||'').toLowerCase().includes(q)) s+=8;\n  return s;\n}\nconst matches=products.map(p=>({...p,_score:score(p)}))\n  .filter(p=>p._score>0).sort((a,b)=>b._score-a._score).slice(0,5);\nreturn [{json:{...incoming,matched_products:matches,product_count:products.length}}];"
+      },
+      "id": "8",
+      "name": "Search Product Catalog",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -460,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={{ $('Store Configuration').first().json.gemini_api_key }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({contents:[{parts:[{text:`You are the AI customer support and sales agent for ${$('Store Configuration').first().json.store_name}. Reply naturally and professionally in the customer's language: English, Urdu, Roman Urdu, or mixed language. Use ONLY the supplied product/business data. Never invent price, stock, size, color, delivery charge, return policy, or product details.\n\nClassify the request into one of: greeting, product_search, price, stock, recommendation, order, delivery, return, exchange, complaint, human_handoff, other.\n\nReturn ONLY valid JSON:\n{\n  \"intent\":\"...\",\n  \"language\":\"English|Urdu|Roman Urdu|Mixed\",\n  \"reply\":\"customer-facing reply\",\n  \"matched_product_ids\":[],\n  \"needs_human\":false,\n  \"confidence\":0.0\n}\n\nIf the customer asks for a product and there are several plausible matches, mention up to 3 choices. If data is insufficient, ask a short clarification question. For complaints, complex orders, angry customers, payment problems, or low confidence, set needs_human=true.\n\nCustomer message:\n${JSON.stringify($('Search Product Catalog').first().json.message)}\n\nMatched catalog products:\n${JSON.stringify($('Search Product Catalog').first().json.matched_products)}\n\nStore:\n${$('Store Configuration').first().json.store_name}\nCurrency:\n${$('Store Configuration').first().json.currency}` }]}]}) }}",
+        "options": {}
+      },
+      "id": "9",
+      "name": "Gemini Customer Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw=$json.candidates?.[0]?.content?.parts?.[0]?.text||'';\nconst clean=raw.replace(/```json/gi,'').replace(/```/g,'').trim();\nlet ai;\ntry{ai=JSON.parse(clean)}catch{ai={intent:'other',language:'Mixed',reply:'Sorry, I could not process that properly. Let me connect you with our support team.',matched_product_ids:[],needs_human:true,confidence:0}};\nconst base=$('Search Product Catalog').first().json;\nreturn [{json:{...base,...ai,ai_generated_at:new Date().toISOString()}}];"
+      },
+      "id": "10",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        20,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.needs_human }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "11",
+      "name": "Human Handoff Required?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v23.0/{{ $('Store Configuration').first().json.whatsapp_phone_number_id }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Store Configuration').first().json.meta_access_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({messaging_product:\"whatsapp\",to:$json.customer_id,type:\"text\",text:{body:$json.reply}}) }}",
+        "options": {}
+      },
+      "id": "12",
+      "name": "Send WhatsApp Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        500,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v23.0/{{ $('Store Configuration').first().json.whatsapp_phone_number_id }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Store Configuration').first().json.meta_access_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({messaging_product:\"whatsapp\",to:$json.customer_id,type:\"text\",text:{body:\"A support representative has been notified and will assist you shortly. \"+$json.reply}}) }}",
+        "options": {}
+      },
+      "id": "13",
+      "name": "Send Handoff Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        500,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Store Configuration').first().json.google_sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Conversation Logs",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $json.received_at }}",
+            "channel": "={{ $json.channel }}",
+            "customer_id": "={{ $json.customer_id }}",
+            "message_id": "={{ $json.message_id }}",
+            "customer_message": "={{ $json.message }}",
+            "intent": "={{ $json.intent }}",
+            "language": "={{ $json.language }}",
+            "ai_reply": "={{ $json.reply }}",
+            "confidence": "={{ $json.confidence }}",
+            "human_handoff": "={{ $json.needs_human }}",
+            "status": "processed"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "14",
+      "name": "Log Conversation",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        760,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "WhatsApp Incoming": {
+      "main": [
+        [
+          {
+            "node": "Store Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instagram Incoming": {
+      "main": [
+        [
+          {
+            "node": "Store Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Facebook Messenger Incoming": {
+      "main": [
+        [
+          {
+            "node": "Store Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Website Chat Incoming": {
+      "main": [
+        [
+          {
+            "node": "Store Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Configuration": {
+      "main": [
+        [
+          {
+            "node": "Normalize Incoming Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Incoming Message": {
+      "main": [
+        [
+          {
+            "node": "Load Product Catalog",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Product Catalog": {
+      "main": [
+        [
+          {
+            "node": "Search Product Catalog",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Product Catalog": {
+      "main": [
+        [
+          {
+            "node": "Gemini Customer Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Customer Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "Human Handoff Required?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Human Handoff Required?": {
+      "main": [
+        [
+          {
+            "node": "Send Handoff Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send WhatsApp Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp Reply": {
+      "main": [
+        [
+          {
+            "node": "Log Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Handoff Reply": {
+      "main": [
+        [
+          {
+            "node": "Log Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "9e6b1d6e-4a18-4a40-9b9d-ec9b8c6d4a11",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
